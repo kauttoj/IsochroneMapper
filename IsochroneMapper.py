@@ -58,15 +58,15 @@ TRANSPORT_PARAMETERS = {
 
 # NOTE: below is an optional area-limiting function that you can use to limit valid points and save some time in polling.
 # For most simple case, can be a separating line as below
-# def is_legal_point(x):
-#     x1,y1=60.186486, 25.330735
-#     x2,y2=60.092571, 24.670135
-#     if x[1] < y2 + ((y2-y1)/(x2-x1))*(x[0]-x2):
-#         return True
-#     return False
-
 def is_legal_point(x):
-    return True # no criteria, all points in region valid
+    x1,y1=60.186486, 25.330735
+    x2,y2=60.092571, 24.670135
+    if x[1] < y2 + ((y2-y1)/(x2-x1))*(x[0]-x2):
+        return True
+    return False
+
+#def is_legal_point(x):
+#    return True # no criteria, all points in region valid
 
 #############################################################################################################
 
@@ -209,7 +209,8 @@ def parse_route(route):
         x = (route["legs"][i]["endTime"] - route["legs"][i]["startTime"]) / 60 / 1000
         r += "%s (%.1fmin)" % (route["legs"][i]["mode"], x)
         tot += x
-    r = "<h3><strong>%.1fmin</strong> (travel %.1fmin):</h3><p>%s</p>" % (route['duration'] / 60, tot, r)
+    start = "(%.4f, %.4f)" % (route["legs"][0]["from"]["lat"],route["legs"][0]["from"]["lon"])
+    r = "<h3><strong>%.1fmin</strong> (travel %.1fmin)<br>%s:</h3><p>%s</p>" % (route['duration'] / 60, tot,start,r)
     return r
 
 # return time group of the results for one point
@@ -366,6 +367,7 @@ if __name__ == "__main__":
     # analyze results
     print("analyzing results")
     x,y,z,info = [],[],[],[]
+    ind_tip = []
     for i in range(len(results)):
         x.append(points[i][0])
         y.append(points[i][1])
@@ -373,6 +375,7 @@ if __name__ == "__main__":
             k,t,s = get_group(results[i])
             z.append(t)
             info.append(s)
+            ind_tip.append(i)
         else:
             z.append(np.nan)
 
@@ -383,15 +386,9 @@ if __name__ == "__main__":
     # Initialize map
     my_map_global = folium.Map(location=TARGET_COORDINATE, zoom_start=10)
 
-    # plot point layers
-    print("drawing points")
-    ind = [i for i in range(len(x)) if z[i] is not np.nan]
-    draw_points(my_map_global,[points[i] for i in ind],layer_name='Points_with_route',color=[color_list[get_color_index(z[i],TIME_RANGES_dense)] for i in ind],text=info,show=False,radius=20)
-    draw_points(my_map_global,points, layer_name='Poll_points',color='royalblue',show=False)
-    draw_points(my_map_global,[TARGET_COORDINATE], layer_name='Target',color=['red'],text=["Target %s" % str(TARGET_COORDINATE)],radius=1)
-
     print("drawing layers")
     # add combined contour
+    print("..full contour")
     my_map_global = add_contour(x, y, z, my_map_global,cm,"Full_contour")
 
     # plot individual time layers
@@ -401,6 +398,17 @@ if __name__ == "__main__":
         print("..layer %s" % s)
         #create_convexhull_polygon(my_map_global,pointlist[i],layer_name=s,line_color=None, fill_color=color, weight=5,text=s)
         my_map_global = add_contour(x, y, z, my_map_global,cm,s,threshold=TIME_RANGES[i],add_colormap=False,show=False)
+
+    # plot point layers
+    print("drawing points")
+    print("..layer poll points")
+    draw_points(my_map_global,points, layer_name='Poll_points',color='royalblue',show=False)
+    print("..layer target")
+    draw_points(my_map_global,[TARGET_COORDINATE], layer_name='Target',color=['red'],text=["Target %s" % str(TARGET_COORDINATE)],radius=1)
+    print("..layer route points")
+    draw_points(my_map_global, [points[i] for i in ind_tip], layer_name='Points_with_route',
+                color=[color_list[get_color_index(z[i], TIME_RANGES_dense)] for i in ind_tip], text=info, show=False,
+                radius=20)
 
     folium.LayerControl(collapsed=False).add_to(my_map_global)
 
