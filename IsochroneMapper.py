@@ -5,6 +5,12 @@ This is achieved by brute-force polling of given grid area using a predefined tr
 as contour regions and points.
 The code was made for Helsinki region using HSL API, but you could apply it other regions as well with some modifications.
 
+In order to make unrestricted API calls, start docker image
+docker run --rm --name otp-hsl -p 9080:8080 -e ROUTER_NAME=hsl -e JAVA_OPTS=-Xmx5g -e ROUTER_DATA_CONTAINER_URL=https://api.digitransit.fi/routing-data/v2/hsl hsldevcom/opentripplanner
+and use URL http://localhost:9080/otp/routers/hsl/index/graphql
+
+Either way, polling is slow with speed around ~1.3/sec
+
 16.2.2020 Janne Kauttonen
 '''
 
@@ -26,33 +32,36 @@ import geojsoncontour
 import math
 
 ## PARAMETERS - change these according to your taste and API service ##############################################
-API_URL = r"https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
+API_URL = r"https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql" # internet
+API_URL = r"http://localhost:9080/otp/routers/hsl/index/graphql" # local
+MAX_REQUEST_PER_SEC = 500 # careful not to get your IP banned for too fast requests (if online service)
+
 # waltti regions	https://api.digitransit.fi/routing/v1/routers/waltti/index/graphql
 # Entire Finland	https://api.digitransit.fi/routing/v1/routers/finland/index/graphql
+
 RESULTFILE = "DistanceMapper_results.pickle" # save results
-MAX_REQUEST_PER_SEC = 12 # careful not to get your IP banned for too fast requests
 TIME_RANGES = [10,20,30,40,50,60] # in minutes, routes beyond these are not plotted with contours
 # MAPPING_AREA = {"TYPE":"RECT","CORNERS":(
 #     (60.283088, 24.489482), # left top
 #     (60.100719, 25.195741), # right bottom
 # )} # X increases towards left, Y increases towards down
 MAPPING_AREA = {"TYPE":"CIRCLE","DISTANCE": 30} # distance in km
-MAX_POINTS = 20000 # maximum number of polling points (randomized), Note: 20k takes few hours
+MAX_POINTS = 30000 # maximum number of polling points (randomized), Note: 20k takes few hours
 OPACITY = 0.5 # layer opacity value for contours
 MAPPING_ACCURACY_MIN = 0.250 # km, rounded down (smaller = more grid points)
 TARGET_COORDINATE = (60.201672, 24.934188) # poll distance from here (e.g., your home or work)
 # transport parameters for polling, defined by API service
 TRANSPORT_PARAMETERS = {
     "date": "2020-02-20",
-    "time": "08:30:00",
-    "numItineraries": 4,
+    "time": "08:40:00",
+    "numItineraries": 3,
     "transportModes": ["RAIL","TRAM","WALK","BUS","SUBWAY"], # {"BUS","RAIL":True,"TRAM":True,"FERRY":False,"WALK":True,"SUBWAY":True}
     "walkReluctance": 1.0, # walk duration multiplier
-    "walkBoardCost": 2*60, # sec
-    "minTransferTime": 5*60, # sec
+    "walkBoardCost": 1*60, # sec
+    "minTransferTime": 4*60, # sec
     "walkSpeed": 1.5, # 1.33 m/s
     "maxWalkDistance": 2000, # m
-    "maxTransfers": 3,
+    "maxTransfers": 1,
     "ignoreRealtimeUpdates":True,
 }
 
@@ -99,17 +108,17 @@ def compute_coordinates(mapping_dict):
             rect_corners[1],
             (rect_corners[0][0],rect_corners[1][1]),)
     x_step_dist, x_dist_step, y_step_dist, y_dist_step = get_stepcount(rect)
-    points = []
-    distance_from_target=[]
+    points,distance_from_target = [],[]
     for x in range(x_dist_step):
         for y in range(y_dist_step):
             new_point = (rect[1][0] + x * x_step_dist,rect[0][1] + y * y_step_dist)
-            if mapping_dict["TYPE"]=="CIRCLE":
-                dist = geopy.distance.geodesic(new_point,TARGET_COORDINATE).km
-                if dist > MAPPING_AREA["DISTANCE"]:
-                    continue
-            points.append(new_point)
-            distance_from_target.append(geopy.distance.geodesic(points[-1],TARGET_COORDINATE).km)
+            if is_legal_point(new_point):
+                if mapping_dict["TYPE"]=="CIRCLE":
+                    dist = geopy.distance.geodesic(new_point,TARGET_COORDINATE).km
+                    if dist > MAPPING_AREA["DISTANCE"]:
+                        continue
+                points.append(new_point)
+                distance_from_target.append(geopy.distance.geodesic(points[-1],TARGET_COORDINATE).km)
     return points,distance_from_target
 
 # api query
@@ -138,6 +147,7 @@ query = """
     walkBoardCost: {walkBoardCost},
     minTransferTime: {minTransferTime},
     walkSpeed: {walkSpeed},
+    maxTransfers: {maxTransfers},
   ) {{
     itineraries{{
       walkDistance
@@ -342,11 +352,13 @@ if __name__ == "__main__":
     start_init = start
     lastsave = start
     count = 0
+    old_points = len(results)
     for i in range(len(results),len(points)):
         # run your code
         params["fromPlace"] = str(points[i])[1:-1]
         params["toPlace"] = str(TARGET_COORDINATE)[1:-1]
 
+        # sleep to avoid too fast polling
         end = time.time()
         elapsed = end - start  # seconds
         time.sleep(max(0,REQUEST_INTERVAL_WAIT-elapsed))
@@ -358,10 +370,11 @@ if __name__ == "__main__":
         results.append(result)
         if len(result)>0:
             count+=1
-        if (end - lastsave)>10 or i==len(points)-1:
+        if (end - lastsave)>30 or i==len(points)-1:
+            # save results every 30s
             lastsave = start
-            print("point %i of %i: (%s, distance %.3fkm): found %i routes (data ratio %.3f, %f.2points/sec)" % (
-            i + 1, len(points), params["fromPlace"], distance_from_target[i], len(result),(count/i),(i+1)/(end-start_init)))
+            print("point %i of %i: (%s, distance %.3fkm): found %i routes (data ratio %.3f, %.2fpoints/sec)" % (
+            i + 1, len(points), params["fromPlace"], distance_from_target[i], len(result),(count/i),(i+1-old_points)/(end-start_init)))
             pickle.dump((results,points,TRANSPORT_PARAMETERS),open(RESULTFILE,"wb"))
 
     # analyze results
