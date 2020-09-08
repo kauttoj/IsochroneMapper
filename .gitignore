@@ -1,3 +1,9 @@
 .idea/
 DistanceMapper_results.pickle
 house_scraper.py
+old_data/
+old_data1/
+HKI_polygon_coordinates.txt
+HKI_polygon_coordinates_large.txt
+IsochroneMapper_results - Copy.pickle
+*.pickle

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>Draw polygons on a map with Leaflet.js and leaflet.draw</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.6.0/leaflet.css">
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.6.0/leaflet.js"></script>		
+	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw-src.css">
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+  <style id="compiled-css" type="text/css">
+    html, body {
+		height: 100%;
+	}
+	#map {
+		height: 100%;
+	}
+    /* EOS */
+  </style>
+
+  <script id="insert"></script>
+
+</head>
+<body>
+
+<div>		
+	<label>Center point</label> <input type="text" id="centerpoint" value=""> 
+	<button id="loadfileButton" type="button" onclick="SetCenter()">Set center</button>	
+	<label>Save polygon</label> <input type="text" id="polygonfile" value="polygon_coordinates.txt"> 
+	<button id="savefileButton" type="button" onclick="downloadToFile()">Save polygon</button>
+</div>	
+
+<div id="map"></div>
+
+<script type="text/javascript">//<![CDATA[
+
+	// center of the map
+	var default_center = [60.172527, 24.932965]; // Finnish parliament house in Helsinki
+	var map = [];
+	function parse_coordinate(coord) {
+		coord = coord.split(",")
+		if (coord.length==2) {
+			return [parseFloat(coord[0]),parseFloat(coord[1])];
+		}
+		else
+			return [];
+	}	
+	var is_new = 1
+	var theMarker = []
+	function SetCenter() {				
+		//d3.select("#loadfileButton").property("disabled",true)				
+		new_center = document.getElementById("centerpoint").value
+		new_center = parse_coordinate(new_center)
+		if (new_center.length==0)
+			center = default_center;
+		else
+			center = new_center;
+		if (is_new==1) {
+			map = L.map('map').setView(center, 6);
+			L.tileLayer(
+				'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+			attribution: 'Data © <a href="http://osm.org/copyright">OpenStreetMap</a>',
+			maxZoom: 18
+		  }).addTo(map);
+		  map = map.setView(center, 8);		  
+		}
+		else {
+			map.removeLayer(theMarker)
+			map = map.setView(center);
+		}
+		// add a marker in the given location		
+		theMarker = L.marker(center)
+		theMarker.addTo(map)
+		is_new = 0;
+	}
+	const downloadToFile = () => {
+	  var filename = document.getElementById("polygonfile").value
+	  const a = document.createElement('a');
+	  const file = new Blob([polygon_str], {type: "text/plain;charset=utf-8"});
+	  a.href= URL.createObjectURL(file);
+	  a.download = filename;
+	  a.click();
+	  URL.revokeObjectURL(a.href);
+	};		
+	SetCenter();
+
+	// Initialise the FeatureGroup to store editable layers
+	var editableLayers = new L.FeatureGroup();
+	map.addLayer(editableLayers);
+
+	var drawPluginOptions = {
+	  position: 'topright',
+	  draw: {
+		polygon: {
+		  allowIntersection: false, // Restricts shapes to simple polygons
+		  drawError: {
+			color: '#e1e100', // Color the shape will turn when intersects
+			message: '<strong>Oh snap!<strong> you can\'t draw that!' // Message that will show when intersect
+		  },
+		  shapeOptions: {
+			color: '#97009c'
+		  }
+		},
+		// disable toolbar item by setting it to false
+		polyline: false,
+		circle: false, // Turns off this drawing tool
+		rectangle: false,
+		marker: false,
+		},
+	  edit: {
+		featureGroup: editableLayers, //REQUIRED!!
+		remove: false
+	  }
+	};
+
+	// Initialise the draw control and pass it the FeatureGroup of editable layers
+	var drawControl = new L.Control.Draw(drawPluginOptions);
+	map.addControl(drawControl);
+
+	var editableLayers = new L.FeatureGroup();
+	map.addLayer(editableLayers);
+	
+	var polygon=[];
+	var polygon_str = "empty!"
+	function addPoints(obj) {
+		polygon = []
+		polygon_str = ""
+		for (i=0;i<obj._latlngs[0].length;i++) {
+			polygon.push([obj._latlngs[0][i].lat,obj._latlngs[0][i].lng])
+			polygon_str = polygon_str + obj._latlngs[0][i].lat + "," + obj._latlngs[0][i].lng + '\n';
+		}					
+	}	
+	map.on('draw:created', function(e) {
+	  var type = e.layerType,
+		layer = e.layer;
+
+	  if (type === 'marker') {
+		layer.bindPopup('A popup!');
+	  }
+
+	  editableLayers.addLayer(layer);	  
+	  addPoints(layer)	  
+	});
+
+  </script>
+
+  <script>
+    // tell the embed parent frame the height of the content
+    if (window.parent && window.parent.parent){
+      window.parent.parent.postMessage(["resultsFrame", {
+        height: document.body.getBoundingClientRect().height,
+        slug: "2k6szamL"
+      }], "*")
+    }
+
+    // always overwrite window.name, in case users try to set it manually
+    window.name = "result"
+  </script>
+
+</body>
+</html>
