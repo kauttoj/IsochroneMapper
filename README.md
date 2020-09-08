@@ -10,7 +10,7 @@ Below are couple of screenshots what you get (see result file "mapper_results.ht
 
 I added a simple GUI to draw and save polygon regions for mapping. Points are saved into .txt file, which can be used with mapping. This is useful if you want to leave out some infeasible points (e.g., water or forests).
 
-![Sample figure 2](https://raw.githubusercontent.com/kauttoj/IsochroneMapper/master/area_mapper/sample_image.png)
+![Sample figure 3](https://raw.githubusercontent.com/kauttoj/IsochroneMapper/master/area_mapper/sample_image.PNG)
 
 16.2.2020 Janne Kauttonen
 8.9.2020 update
