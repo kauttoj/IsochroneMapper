@@ -7,3 +7,9 @@ HKI_polygon_coordinates.txt
 HKI_polygon_coordinates_large.txt
 IsochroneMapper_results - Copy.pickle
 *.pickle
+mapper_results_smoothed_0.500km.html
+mapper_results_smoothed_0.100km.html
+mapper_results_smoothed_0.050km.html
+mapper_results.html
+Suitable_areacodes.xlsx
+Suitable_areacodes.txt
